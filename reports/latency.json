@@ -1,0 +1,15 @@
+{
+  "machine": "Darwin arm64",
+  "results": {
+    "logistic_regression": {
+      "batch_size": 1000,
+      "median_ms": 0.5533329967875034,
+      "p95_ms": 0.8697246434167027
+    },
+    "random_forest": {
+      "batch_size": 1000,
+      "median_ms": 25.30310451402329,
+      "p95_ms": 28.160250023938726
+    }
+  }
+}
