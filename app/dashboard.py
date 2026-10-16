@@ -1,28 +1,24 @@
 """RiskWatch fraud risk-monitoring dashboard.
 
-Run scripts/load_data.py, scripts/compare_models.py and
-scripts/benchmark_latency.py first, then:
+Reads the precomputed files in reports/, so it runs without the raw data or
+trained models (that's what lets it deploy to Streamlit Community Cloud).
+To regenerate them, run the pipeline in the README, then:
     streamlit run app/dashboard.py
 """
 
 import json
 
-import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from sklearn.metrics import precision_recall_curve
 
-from riskwatch.analysis import run_query
-from riskwatch.config import LABEL, PCA_FEATURES, PROJECT_ROOT
-from riskwatch.model import FEATURES, load_dataset, time_split
-from riskwatch.monitoring import feature_drift
-from riskwatch.quality import run_all_checks
+from riskwatch.config import PROJECT_ROOT
 from riskwatch.threshold import threshold_table
 
 REPORTS = PROJECT_ROOT / "reports"
-ARTIFACTS = PROJECT_ROOT / "artifacts"
+DATA = REPORTS / "dashboard"
 MODEL_LABELS = {"random_forest": "Random Forest", "logistic_regression": "Logistic Regression"}
 
 # Categorical slots 1-2 (validated for color-vision deficiency, light and dark).
@@ -57,31 +53,14 @@ def style(fig: go.Figure, height: int = 340) -> go.Figure:
     return fig
 
 
-@st.cache_data(show_spinner="Loading transactions...")
-def load_splits():
-    df = load_dataset()
-    train_full, test = time_split(df)
-    train, val = time_split(train_full)
-    return train, val, test
-
-
-@st.cache_data(show_spinner="Scoring test transactions...")
-def score_test(name: str) -> np.ndarray:
-    _, _, test = load_splits()
-    model = joblib.load(ARTIFACTS / f"{name}.joblib")
-    return model.predict_proba(test[FEATURES])[:, 1]
-
-
-@st.cache_data(show_spinner="Scoring validation transactions...")
-def score_split(split: str) -> np.ndarray:
-    train, val, _ = load_splits()
-    model = joblib.load(ARTIFACTS / "random_forest.joblib")
-    return model.predict_proba({"train": train, "val": val}[split][FEATURES])[:, 1]
+@st.cache_data
+def read_csv(name: str) -> pd.DataFrame:
+    return pd.read_csv(DATA / name)
 
 
 @st.cache_data
-def read_json(name: str) -> dict:
-    return json.loads((REPORTS / name).read_text())
+def read_json(path: str) -> dict:
+    return json.loads((REPORTS / path).read_text())
 
 
 def bar(x, y, hover_label: str, y_title: str, color: str) -> go.Figure:
@@ -96,15 +75,17 @@ def bar(x, y, hover_label: str, y_title: str, color: str) -> go.Figure:
 # ---------------------------------------------------------------- header
 st.title("🛡️ RiskWatch")
 st.caption("Fraud detection and risk monitoring on 284,807 credit-card transactions "
-           "(Kaggle / ULB dataset, two days of European cardholder data).")
+           "(Kaggle / ULB dataset, two days of European cardholder data). "
+           "[Source code](https://github.com/elifnazatalay/RiskWatch)")
 
-missing = [p for p in ["model_comparison.json", "latency.json"] if not (REPORTS / p).exists()]
-if missing or not (ARTIFACTS / "random_forest.joblib").exists():
-    st.error("Model files are missing. Run `python scripts/compare_models.py` and "
-             "`python scripts/benchmark_latency.py`, then reload.")
+if not (DATA / "test_scores.csv.gz").exists():
+    st.error("Dashboard data is missing. Run `python scripts/compare_models.py`, "
+             "`python scripts/benchmark_latency.py` and "
+             "`python scripts/export_dashboard_data.py`, then reload.")
     st.stop()
 
-train, val, test = load_splits()
+test = read_csv("test_scores.csv.gz")
+summary = read_json("dashboard/summary.json")
 comparison = read_json("model_comparison.json")
 latency = read_json("latency.json")
 
@@ -112,7 +93,7 @@ tab_overview, tab_model, tab_monitor = st.tabs(["Portfolio risk", "Model & thres
 
 # ---------------------------------------------------------------- tab 1
 with tab_overview:
-    ov = run_query("01_overview").iloc[0]
+    ov = read_csv("overview.csv").iloc[0]
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Transactions", f"{int(ov['total_transactions']):,}")
     c2.metric("Fraud transactions", f"{int(ov['fraud_transactions']):,}",
@@ -122,7 +103,7 @@ with tab_overview:
               help=f"{ov['fraud_amount_pct']:.2f}% of total transaction value.")
 
     left, right = st.columns(2)
-    bands = run_query("02_amount_bands")
+    bands = read_csv("amount_bands.csv")
     with left:
         st.subheader("Fraud rate by transaction amount")
         st.plotly_chart(bar(bands["amount_band"].str[3:], bands["fraud_rate_pct"],
@@ -130,7 +111,7 @@ with tab_overview:
                         width="stretch")
         st.caption("$0 transactions are 8.6x riskier than average, consistent with "
                    "card-testing charges.")
-    hourly = run_query("03_hourly_risk").sort_values("hour")
+    hourly = read_csv("hourly_risk.csv").sort_values("hour")
     with right:
         st.subheader("Fraud rate by hour of data collection")
         st.plotly_chart(bar(hourly["hour"], hourly["fraud_rate_pct"],
@@ -143,7 +124,7 @@ with tab_overview:
 with tab_model:
     picked = st.radio("Model", list(MODEL_LABELS), format_func=MODEL_LABELS.get,
                       horizontal=True)
-    scores = score_test(picked)
+    scores = test[f"score_{picked}"]
     chosen = comparison["results"][picked]["threshold"]
 
     # Logistic Regression's useful thresholds sit above 0.99, so the grid is finer there.
@@ -159,8 +140,8 @@ with tab_model:
     st.caption(f"Recommended threshold **{chosen:.3f}** keeps validation false alarms at "
                f"or below {comparison['max_validation_fpr']:.1%} of legitimate transactions.")
 
-    row = threshold_table(test[LABEL], scores, test["Amount"], [threshold]).iloc[0]
-    total_fraud = int(test[LABEL].sum())
+    row = threshold_table(test["Class"], scores, test["Amount"], [threshold]).iloc[0]
+    total_fraud = int(test["Class"].sum())
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Frauds caught", f"{int(row['fraud_caught'])} / {total_fraud}",
               help="Recall on the test period.")
@@ -176,7 +157,7 @@ with tab_model:
         st.subheader("Precision-recall: both models")
         fig = go.Figure()
         for name, label in MODEL_LABELS.items():
-            p, r, _ = precision_recall_curve(test[LABEL], score_test(name))
+            p, r, _ = precision_recall_curve(test["Class"], test[f"score_{name}"])
             pr_auc = comparison["results"][name]["pr_auc"]
             fig.add_trace(go.Scatter(
                 x=r, y=p, mode="lines", name=f"{label} (PR-AUC {pr_auc:.3f})",
@@ -195,7 +176,7 @@ with tab_model:
 
     with right:
         st.subheader(f"Trade-off: {MODEL_LABELS[picked]}")
-        curve = threshold_table(test[LABEL], scores, test["Amount"], grid)
+        curve = threshold_table(test["Class"], scores, test["Amount"], grid)
         fig = go.Figure(go.Scatter(
             x=curve["false_alarms"], y=curve["fraud_caught"], mode="lines",
             line=dict(color=colors()[picked], width=2), name=MODEL_LABELS[picked],
@@ -244,14 +225,12 @@ with tab_model:
 
 # ---------------------------------------------------------------- tab 3
 with tab_monitor:
-    st.subheader("Data-quality checks")
-    full = pd.concat([train, val, test]).drop(columns=["transaction_id", "log_amount"])
-    for check in run_all_checks(full):
-        icon = "✅" if check.passed else "❌"
-        st.markdown(f"{icon} **{check.name.replace('_', ' ').capitalize()}** "
-                    f"({'pass' if check.passed else 'fail'}): {check.detail}")
-    st.caption("Checks run on the deduplicated modeling data, so 0 duplicates is expected here; "
-               "the raw CSV has 1,081.")
+    st.subheader("Data-quality checks (raw CSV)")
+    for check in summary["quality_checks"]:
+        icon = "✅" if check["passed"] else "❌"
+        st.markdown(f"{icon} **{check['name'].replace('_', ' ').capitalize()}** "
+                    f"({'pass' if check['passed'] else 'fail'}): {check['detail']}")
+    st.caption("Duplicates are reported rather than failed, then removed before modeling.")
 
     st.subheader("Drift: training period vs. test period")
     st.caption("Population Stability Index (PSI): < 0.10 stable, 0.10-0.25 moderate shift, "
@@ -260,16 +239,16 @@ with tab_monitor:
     # collapses the quantile bins. The alert rate at the chosen threshold is the
     # number an operations team would actually watch.
     rf_threshold = comparison["results"]["random_forest"]["threshold"]
-    val_alert_rate = (score_split("val") >= rf_threshold).mean()
-    test_alert_rate = (score_test("random_forest") >= rf_threshold).mean()
+    val_alert_rate = summary["rf_alert_rate_validation"]
+    test_alert_rate = (test["score_random_forest"] >= rf_threshold).mean()
     d1, d2, d3 = st.columns(3)
     d1.metric("Random Forest alert rate, test", f"{test_alert_rate:.3%}",
               delta=f"{(test_alert_rate - val_alert_rate) * 100:+.3f} pts vs validation",
               delta_color="off")
-    d2.metric("Fraud rate, train period", f"{train[LABEL].mean():.3%}")
-    d3.metric("Fraud rate, test period", f"{test[LABEL].mean():.3%}")
+    d2.metric("Fraud rate, train period", f"{summary['fraud_rate_train']:.3%}")
+    d3.metric("Fraud rate, test period", f"{summary['fraud_rate_test']:.3%}")
 
-    drift = feature_drift(train, test, [*PCA_FEATURES, "log_amount"])
+    drift = read_csv("feature_drift.csv")
     top = drift.head(10).iloc[::-1]
     fig = go.Figure(go.Bar(
         x=top["psi"], y=top["feature"], orientation="h",

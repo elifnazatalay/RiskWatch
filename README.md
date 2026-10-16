@@ -33,12 +33,12 @@ RiskWatch/
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
+pip install -r requirements.txt   # also installs src/riskwatch
 python scripts/load_data.py     # runs data-quality checks, writes data/processed/riskwatch.db
 python scripts/run_analysis.py  # runs every query in sql/
 python scripts/compare_models.py     # trains both models, picks thresholds
 python scripts/benchmark_latency.py  # measures batch-inference latency
+python scripts/export_dashboard_data.py  # saves the small files the dashboard reads
 streamlit run app/dashboard.py       # opens the dashboard
 pytest
 ```

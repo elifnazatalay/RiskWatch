@@ -6,3 +6,5 @@ plotly
 scipy
 joblib
 pytest
+# Installs this project's src/riskwatch package (needed by the dashboard on Streamlit Cloud).
+-e .
