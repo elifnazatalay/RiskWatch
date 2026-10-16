@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, confusion_matrix, roc_auc_score
 from sklearn.pipeline import Pipeline, make_pipeline
@@ -49,6 +50,19 @@ def build_logistic_regression(class_weight: str | None = "balanced") -> Pipeline
     return make_pipeline(
         StandardScaler(),
         LogisticRegression(class_weight=class_weight, max_iter=1000),
+    )
+
+
+def build_random_forest(n_estimators: int = 200, random_state: int = 42) -> RandomForestClassifier:
+    # Trees split on thresholds, so no scaling is needed. "balanced_subsample"
+    # reweights classes inside each tree's bootstrap sample. min_samples_leaf
+    # stops trees from memorizing individual fraud rows.
+    return RandomForestClassifier(
+        n_estimators=n_estimators,
+        class_weight="balanced_subsample",
+        min_samples_leaf=5,
+        n_jobs=-1,
+        random_state=random_state,
     )
 
 
