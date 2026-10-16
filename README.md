@@ -58,6 +58,24 @@ Key findings:
 - The largest 10% of frauds account for 61% of fraud dollars, so catching high-value frauds matters more than raw fraud count.
 - The fraud rate fell 22% from day 1 to day 2, a reminder that fraud patterns shift and models need monitoring.
 
+## Baseline model
+
+`python scripts/train_baseline.py` trains a Logistic Regression on the 28 PCA features plus log-transformed amount.
+
+- **Time-based split:** the model trains on the earliest 80% of transactions and is tested on the latest 20%, mirroring production, where a model always scores future transactions.
+- **Duplicates removed** (1,081 rows) so identical rows can't appear in both train and test.
+- **Main metric is PR-AUC,** not accuracy, because of the 0.17% fraud rate.
+
+Test set: 56,746 transactions, 74 fraud. Threshold 0.5.
+
+| Model | PR-AUC | Recall | Precision | False-positive rate | Accuracy |
+|---|---|---|---|---|---|
+| Always "not fraud" | 0.001 | 0.0% | — | 0.00% | 99.87% |
+| Logistic Regression | 0.751 | 55.4% | 91.1% | 0.01% | 99.93% |
+| Logistic Regression, class-weighted | 0.750 | 90.5% | 4.0% | 2.83% | 97.16% |
+
+Class weighting doesn't change how well the model *ranks* transactions (same PR-AUC). It shifts the trade-off: it catches 67 of 74 frauds instead of 41, but raises 1,605 false alarms. Choosing the right decision threshold is the next step.
+
 ## Status
 
 Initial project setup in progress.
