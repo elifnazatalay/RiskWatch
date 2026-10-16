@@ -76,6 +76,31 @@ Test set: 56,746 transactions, 74 fraud. Threshold 0.5.
 
 Class weighting doesn't change how well the model *ranks* transactions (same PR-AUC). It shifts the trade-off: it catches 67 of 74 frauds instead of 41, but raises 1,605 false alarms. Choosing the right decision threshold is the next step.
 
+## Model comparison and threshold selection
+
+`python scripts/compare_models.py` compares class-weighted Logistic Regression with a Random Forest.
+
+**Choosing the threshold.** In practice, a fraud team can only review so many alerts, so the threshold is set by an **alert budget**: at most 0.1% of legitimate transactions may be flagged. To avoid tuning on the test set, the training period is split again by time:
+
+| Period | Transactions | Fraud |
+|---|---|---|
+| Train | 181,584 | 347 |
+| Validation (threshold chosen here) | 45,396 | 52 |
+| Test (reported below) | 56,746 | 74 |
+
+Test results, with the threshold picked on validation:
+
+| Model | PR-AUC | Frauds caught | Recall | Precision | False alarms | False-positive rate | Fraud $ caught |
+|---|---|---|---|---|---|---|---|
+| Logistic Regression | 0.732 | 58 / 74 | 78.4% | 58.0% | 42 | 0.074% | 69.0% |
+| Random Forest | **0.804** | **60 / 74** | **81.1%** | 48.0% | 65 | 0.115% | 69.2% |
+
+- Random Forest ranks fraud better (PR-AUC 0.804 vs 0.732) and catches 2 more frauds.
+- On the test period its false-positive rate (0.115%) came in slightly **over** the 0.1% budget it met on validation. The score distribution shifted between periods, which is why thresholds need ongoing monitoring.
+- Both models catch about 69% of fraud dollars. The frauds they miss are disproportionately high-value, a natural target for the next iteration.
+
+`reports/threshold_curve.csv` holds the full recall / false-alarm trade-off for each model, for the dashboard.
+
 ## Status
 
 Initial project setup in progress.
