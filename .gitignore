@@ -30,3 +30,6 @@ artifacts/
 
 # Packaging
 *.egg-info/
+
+# Trained model files
+*.joblib
