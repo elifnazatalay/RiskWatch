@@ -37,6 +37,9 @@ pip install -r requirements.txt
 pip install -e .
 python scripts/load_data.py     # runs data-quality checks, writes data/processed/riskwatch.db
 python scripts/run_analysis.py  # runs every query in sql/
+python scripts/compare_models.py     # trains both models, picks thresholds
+python scripts/benchmark_latency.py  # measures batch-inference latency
+streamlit run app/dashboard.py       # opens the dashboard
 pytest
 ```
 
@@ -101,6 +104,20 @@ Test results, with the threshold picked on validation:
 
 `reports/threshold_curve.csv` holds the full recall / false-alarm trade-off for each model, for the dashboard.
 
+## Dashboard
+
+`streamlit run app/dashboard.py` opens a three-tab dashboard:
+
+- **Portfolio risk:** headline fraud KPIs and fraud rate by amount band and hour.
+- **Model & threshold:** a threshold slider that updates frauds caught, false alarms, precision and fraud dollars caught live, with precision-recall curves for both models and the false-alarm trade-off.
+- **Monitoring:** data-quality check status, alert-rate change from validation to test, feature drift measured with the Population Stability Index (PSI), and inference latency.
+
+Findings from monitoring:
+
+- Several features drift significantly between the training and test periods (V1 has PSI 1.35, well above the 0.25 "significant" line). The test period covers different hours of the day than training, so part of this likely reflects the daily cycle of card activity.
+- The Random Forest's alert rate rose from 0.194% on validation to 0.220% on test at the same threshold.
+- Batch inference on 1,000 transactions takes a median of 25.3 ms (Random Forest) and 0.6 ms (Logistic Regression) on an Apple Silicon laptop.
+
 ## Status
 
-Initial project setup in progress.
+Core pipeline, models, and dashboard complete.
