@@ -1,0 +1,32 @@
+{
+  "quality_checks": [
+    {
+      "name": "schema",
+      "passed": true,
+      "detail": "all 31 expected columns present"
+    },
+    {
+      "name": "missing_values",
+      "passed": true,
+      "detail": "no missing values"
+    },
+    {
+      "name": "duplicate_rows",
+      "passed": true,
+      "detail": "1081 fully duplicated rows (0.38%)"
+    },
+    {
+      "name": "valid_labels",
+      "passed": true,
+      "detail": "every Class value is 0 or 1"
+    },
+    {
+      "name": "non_negative_amount",
+      "passed": true,
+      "detail": "no negative amounts"
+    }
+  ],
+  "rf_alert_rate_validation": 0.0019384967838576087,
+  "fraud_rate_train": 0.001910961318177813,
+  "fraud_rate_test": 0.0013040566735981391
+}
