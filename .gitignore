@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Virtual environments
+.venv/
+venv/
+
+# Local data and generated artifacts
+data/raw/*
+data/processed/*
+artifacts/
+*.db
+*.sqlite
+*.sqlite3
+
+# Keep the data directory structure in Git
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Editors and operating systems
+.DS_Store
+.vscode/
+.idea/
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Packaging
+*.egg-info/
