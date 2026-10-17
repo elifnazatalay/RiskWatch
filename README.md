@@ -1,24 +1,33 @@
 # RiskWatch
 
-Fraud detection and risk monitoring dashboard built with Python, SQL,
-scikit-learn, and Streamlit.
+Fraud detection and risk monitoring on 284,807 credit-card transactions, built with Python, SQL, scikit-learn, and Streamlit.
 
-## Planned features
+**[Live demo →](https://riskwatch-elif.streamlit.app/)**
 
-- Reproducible data ingestion into SQLite
-- Automated data-quality checks
-- Logistic Regression and Random Forest model comparison
-- Precision-recall and decision-threshold analysis
-- Interactive risk-monitoring dashboard
-- Distribution-drift checks and inference benchmarks
+![Model & threshold tab: threshold slider, precision-recall curves, and false-alarm trade-off](docs/images/model-threshold.png)
+
+## Highlights
+
+- **81% of test-period fraud caught at a ~0.1% false-positive alert budget** (Random Forest, PR-AUC 0.80), with the threshold chosen on a held-out validation period
+- **SQL risk analysis** with CTEs and window functions (`RANK`, `NTILE`, `LAG`)
+- **Automated data-quality checks** before data reaches the database
+- **Monitoring:** feature drift with the Population Stability Index (PSI), alert-rate tracking, and 25 ms batch inference per 1,000 transactions
+- **34 automated tests** with pytest, including dashboard tests with Streamlit AppTest
+
+| Portfolio risk | Monitoring |
+|---|---|
+| ![Portfolio risk tab](docs/images/portfolio-risk.png) | ![Monitoring tab](docs/images/monitoring.png) |
 
 ## Project structure
 
 ```text
 RiskWatch/
+├── app/                # Streamlit dashboard
 ├── data/               # Local raw and processed data (not committed)
-├── notebooks/          # Exploratory analysis
-├── scripts/            # Data download and pipeline commands
+├── docs/images/        # README screenshots
+├── reports/            # Model metrics and the dashboard's data bundle
+├── scripts/            # Pipeline commands (load, analyze, train, benchmark, export)
+├── sql/                # SQL risk-analysis queries
 ├── src/riskwatch/      # Reusable application code
 └── tests/              # Automated tests
 ```
